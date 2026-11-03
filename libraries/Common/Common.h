@@ -1,0 +1,1 @@
+﻿inline void CommonSerialBegin() { Serial.begin(115200); }
