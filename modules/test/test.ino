@@ -1,6 +1,6 @@
 ﻿#include <Module.h>
 
-Module module(10);
+Module module;
 
 void setup()
 {
