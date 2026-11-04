@@ -7,7 +7,8 @@ enum PacketID : uint8_t
     GET,
     RETURN,
     COMMUNICATION,
-    EXCEPTION
+    EXCEPTION,
+    FLAG
 };
 
 enum Communication : uint16_t
@@ -25,7 +26,8 @@ enum GetRequest : uint16_t
 
 enum Routines : uint16_t
 {
-    SETUP
+    SETUP,
+    UPDATE
 };
 
 inline void emptyStream(Stream &stream)

@@ -81,6 +81,7 @@ void setup()
 
 void loop()
 {
+    runRoutine(Routines::UPDATE, 6);
 }
 
 // MASTER PACKET PROCESSING
@@ -98,6 +99,11 @@ inline void processPacket(uint8_t packetID, uint16_t packetWord)
             processGetPacket(packetWord);
             return;
         }
+        case PacketID::FLAG:
+        {
+            processFlagPacket(packetWord);
+            return;
+        }
         default:
             return;
     }
@@ -111,4 +117,9 @@ inline void processGetPacket(uint16_t packetWord)
         sendPacket(Serial1, PacketID::RETURN, getResponseTable[packetWord]);
     }
     throwException(Exceptions::INVALID_GET);
+}
+
+inline void processFlagPacket(uint16_t packetWord)
+{
+    sendPacket(Serial1, PacketID::RETURN, 0);
 }

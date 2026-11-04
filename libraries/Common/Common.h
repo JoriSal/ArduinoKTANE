@@ -8,4 +8,9 @@ enum Exceptions : uint8_t
     INVALID_GET
 };
 
+enum Flags : uint8_t
+{
+    STRIKE
+};
+
 #endif

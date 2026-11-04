@@ -7,7 +7,13 @@
 class Module
 {
 public:
-    
+    Module(uint8_t maxBindings, uint8_t maxSyncs) 
+        : _maxAttributes(maxBindings), _maxSyncs(maxSyncs), _attributeCount(0), _syncCount(0)
+    {
+        _attributes = new Binding[_maxAttributes];
+        _syncs = new Binding[_maxSyncs];
+    }
+
     inline void init()
     {
         Serial.begin(BAUD_RATE);
@@ -61,18 +67,77 @@ public:
         _errorCode = errorCode;
     }
     
-    uint8_t Batteries;
-    uint16_t timer;
+    void attribute(uint16_t &variable, uint16_t getRequest)
+    {
+        if (_attributeCount < _maxAttributes)
+        {
+            _attributes[_attributeCount] = { &variable, getRequest };
+            _attributeCount++;
+        }
+    }
+
+    void sync(uint16_t &variable, uint16_t getRequest)
+    {
+        if (_syncCount < _maxSyncs)
+        {
+            _syncs[_syncCount] = { &variable, getRequest };
+            _syncCount++;
+        }
+    }
+    
+    void strike()
+    {
+        _flags |= 1 << Flags::STRIKE;
+    }
 
 private:
     bool commEnabled = false;
-    
+    uint16_t _flags = 0;
     uint8_t _errorCode = 0;
     
-    inline void setup()
+    struct Binding {
+        uint16_t* varPointer;
+        uint16_t getRequest;
+    };
+    
+    Binding* _attributes;
+    uint8_t _maxAttributes;
+    uint8_t _attributeCount;
+    
+    Binding* _syncs;
+    uint8_t _maxSyncs;
+    uint8_t _syncCount;
+    
+    inline void _setup()
     {
-        Batteries = getAndSaveResponce(Serial, GetRequest::BATTERIES);
-        uint8_t TESTVAR = getAndSaveResponce(Serial, GetRequest::TIMER);
+        for (uint8_t i = 0; i < _attributeCount; i++)
+        {
+            *(_attributes[i].varPointer) = getAndSaveResponce(Serial, _attributes[i].getRequest);
+        }
+        
+        sendPacket(Serial, PacketID::COMMUNICATION, Communication::END);
+    }
+    
+    inline void _update()
+    {
+        uint8_t packetID;
+        uint16_t packetWord;
+        
+        if (_flags)
+        {
+            sendPacket(Serial, PacketID::FLAG, _flags);
+            if (readPacketWait(Serial, packetID, packetWord) && packetID == PacketID::RETURN)
+            {
+                _flags = packetWord;
+                
+                Serial.println("strike");
+            }
+        }
+        
+        for (uint8_t i = 0; i < _syncCount; i++)
+        {
+            *(_syncs[i].varPointer) = getAndSaveResponce(Serial, _syncs[i].getRequest);
+        }
         
         sendPacket(Serial, PacketID::COMMUNICATION, Communication::END);
     }
@@ -85,7 +150,12 @@ private:
         {
             case Routines::SETUP:
                 {
-                    setup();
+                    _setup();
+                    return;
+                }
+            case Routines::UPDATE:
+                {
+                    _update();
                     return;
                 }
             default:
