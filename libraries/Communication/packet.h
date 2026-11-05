@@ -27,7 +27,8 @@ enum GetRequest : uint16_t
 enum Routines : uint16_t
 {
     SETUP,
-    UPDATE
+    UPDATE,
+    EXPLODE
 };
 
 inline void emptyStream(Stream &stream)

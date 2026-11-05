@@ -1,13 +1,11 @@
 ﻿#include <Module.h>
 
-Module module;
-
 void setup()
 {
-    module.init();
+    Module.init();
 }
 
 void loop()
 {
-    module.update();
+    Module.update();
 }

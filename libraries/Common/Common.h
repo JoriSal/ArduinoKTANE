@@ -10,7 +10,8 @@ enum Exceptions : uint8_t
 
 enum Flags : uint8_t
 {
-    STRIKE
+    STRIKE,
+    DETONATE
 };
 
 #endif

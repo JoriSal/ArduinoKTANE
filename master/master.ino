@@ -4,6 +4,8 @@
 const uint8_t MAX_MODULES = 12;
 uint16_t ModuleSlots = 0;
 
+uint8_t OpenedModule = 0;
+
 uint16_t getResponseTable[GetRequest::MAX_GET_REQUESTS];
 
 inline void setupBomb() {
@@ -16,32 +18,40 @@ inline void setupBomb() {
     runRoutine(Routines::SETUP, 6);
 }
 
-inline void closeModule(uint8_t moduleEnable)
+inline void openModule(uint8_t moduleSlot)
 {
-    digitalWrite(moduleEnable, LOW);
+    // to add - close the connection with the previous opened module
+    // later change from hardcoded value to work with the shift register
+    
+    emptyStream(Serial1);
+    digitalWrite(6, HIGH);
+    delay(1);
 }
 
-inline bool runRoutine(uint16_t routine, uint8_t moduleEnable)
+inline void closeModule()
+{
+    // later change from hardcoded value to work with the shift register
+    digitalWrite(6, LOW);
+}
+
+inline bool runRoutine(uint16_t routine, uint8_t moduleSlot)
 {
     uint8_t packetID;
     uint16_t packetWord;
     
-    emptyStream(Serial1);
-
-    digitalWrite(moduleEnable, HIGH);
-    delay(1);
+    openModule(moduleSlot);
 
     sendPacket(Serial1, PacketID::ROUTINE, routine);
     
     if (!readPacketWait(Serial1, packetID, packetWord))
     {
-        closeModule(moduleEnable);
+        closeModule();
         return false;
     }
     
     if (packetID != PacketID::COMMUNICATION || packetWord != Communication::ACK)
     {
-        closeModule(moduleEnable);
+        closeModule();
         return false;
     }
     
@@ -49,15 +59,10 @@ inline bool runRoutine(uint16_t routine, uint8_t moduleEnable)
     {
         if (!readPacketWait(Serial1, packetID, packetWord))
         {
-            closeModule(moduleEnable);
+            closeModule();
             return false;
         }
         
-        if (packetID == PacketID::EXCEPTION)
-        {
-            throwException(packetWord);
-            break;
-        }
         processPacket(packetID, packetWord);
     }
     return true;
@@ -65,6 +70,11 @@ inline bool runRoutine(uint16_t routine, uint8_t moduleEnable)
 
 void throwException(uint8_t errorCode)
 {
+    closeModule();
+    
+    // to add - exception handling
+    
+    while(true) {}
 }
 
 void setup()
@@ -104,19 +114,24 @@ inline void processPacket(uint8_t packetID, uint16_t packetWord)
             processFlagPacket(packetWord);
             return;
         }
+        case PacketID::EXCEPTION:
+        {
+            throwException(packetWord);
+            return;
+        }
         default:
             return;
     }
 }
 
-
 inline void processGetPacket(uint16_t packetWord)
 {
-    if (packetWord < GetRequest::MAX_GET_REQUESTS)
+    if (packetWord >= GetRequest::MAX_GET_REQUESTS)
     {
-        sendPacket(Serial1, PacketID::RETURN, getResponseTable[packetWord]);
+        throwException(Exceptions::INVALID_GET);
+        return;
     }
-    throwException(Exceptions::INVALID_GET);
+    sendPacket(Serial1, PacketID::RETURN, getResponseTable[packetWord]);
 }
 
 inline void processFlagPacket(uint16_t packetWord)
