@@ -4,38 +4,77 @@
 #include <Common.h>
 #include <packet.h>
 
+#define MODULE false
+#define NEEDY true
+
+typedef void (*ExceptionCallback)(uint16_t);
+
 class ModuleClass
 {
 public:
-    inline void init()
+    inline void init(bool isNeedy)
     {
         Serial.begin(BAUD_RATE);
         pinMode(2, INPUT);
     }
     
-    inline void init(uint8_t maxAttributes, uint8_t maxSyncs)
+    inline void init(bool isNeedy, uint8_t maxConfigurations)
     {
-        init();
-        _maxAttributes = maxAttributes;
+        init(isNeedy);
+        _maxConfigurations = maxConfigurations;
+        
+        if (_maxConfigurations > 0)
+        {
+            _configurations = new Binding[_maxConfigurations];
+        }
+    }
+    
+    inline void init(bool isNeedy, uint8_t maxConfigurations, uint8_t maxSyncs)
+    {
+        init(isNeedy);
+        _maxConfigurations = maxConfigurations;
         _maxSyncs = maxSyncs;
         
-        if (_maxAttributes > 0)
+        if (_maxConfigurations > 0)
         {
-            _attributes = new Binding[_maxAttributes];
+            _configurations = new Binding[_maxConfigurations];
         }
         
         if (_maxSyncs > 0)
         {
-            _syncs = new Binding[_maxSyncs];
+            _syncs = new Binding[_maxSyncs]; 
         }
     }
     
-    void attribute(uint16_t &variable, uint16_t getRequest)
+    inline void init(bool isNeedy, uint8_t maxConfigurations, uint8_t maxSyncs, uint8_t maxReports)
     {
-        if (_attributeCount < _maxAttributes)
+        init(isNeedy);
+        _maxConfigurations = maxConfigurations;
+        _maxSyncs = maxSyncs;
+        _maxReports = maxReports;
+        
+        if (_maxConfigurations > 0)
         {
-            _attributes[_attributeCount] = { &variable, getRequest };
-            _attributeCount++;
+            _configurations = new Binding[_maxConfigurations];
+        }
+        
+        if (_maxSyncs > 0)
+        {
+            _syncs = new Binding[_maxSyncs]; 
+        }
+
+		if (_maxReports > 0)
+		{
+			_reports = new Binding[_maxReports];
+    	}
+    }
+    
+    void configuration(uint16_t &variable, uint16_t getRequest)
+    {
+        if (_configurationCount < _maxConfigurations)
+        {
+            _configurations[_configurationCount] = { &variable, getRequest };
+            _configurationCount++;
         }
     }
 
@@ -45,6 +84,15 @@ public:
         {
             _syncs[_syncCount] = { &variable, getRequest };
             _syncCount++;
+        }
+    }
+        
+    void report(uint16_t &variable, uint16_t getRequest)
+    {
+        if (_reportCount < _maxReports)
+        {
+            _reports[_reportCount] = { &variable, getRequest };
+            _reportCount++;
         }
     }
     
@@ -84,6 +132,11 @@ public:
                         processRoutinePacket(packetWord);
                         break;
                     }
+                case PacketID::EXCEPTION:
+                    {
+                        onException(packetWord);
+                    }
+                
                 default:
                     break;
             }
@@ -105,29 +158,36 @@ public:
         _errorCode = errorCode;
     }
     
+    ExceptionCallback onException = [](uint16_t) {};
+    
 private:
     bool commEnabled = false;
     uint16_t _flags = 0;
     uint8_t _errorCode = 0;
+    bool _isNeedy = false;
     
     struct Binding {
         uint16_t* varPointer;
         uint16_t getRequest;
     };
     
-    Binding* _attributes;
-    uint8_t _maxAttributes = 0;
-    uint8_t _attributeCount = 0;
+    Binding* _configurations;
+    uint8_t _maxConfigurations = 0;
+    uint8_t _configurationCount = 0;
     
     Binding* _syncs;
     uint8_t _maxSyncs = 0;
     uint8_t _syncCount = 0;
+
+	Binding* _reports;
+	uint8_t _maxReports = 0;
+	uint8_t _reportCount = 0;
     
     inline void _setup()
     {
-        for (uint8_t i = 0; i < _attributeCount; i++)
+        for (uint8_t i = 0; i < _configurationCount; i++)
         {
-            *(_attributes[i].varPointer) = getAndSaveResponce(Serial, _attributes[i].getRequest);
+            *(_configurations[i].varPointer) = getAndSaveResponse(Serial, _configurations[i].getRequest);
         }
         
         sendPacket(Serial, PacketID::COMMUNICATION, Communication::END);
@@ -149,7 +209,13 @@ private:
         
         for (uint8_t i = 0; i < _syncCount; i++)
         {
-            *(_syncs[i].varPointer) = getAndSaveResponce(Serial, _syncs[i].getRequest);
+            *(_syncs[i].varPointer) = getAndSaveResponse(Serial, _syncs[i].getRequest);
+        }
+        
+        for (uint8_t i = 0; i < _reportCount; i++)
+        {
+            sendPacket(Serial, PacketID::SET, _reports[i].getRequest);
+            sendPacket(Serial, PacketID::SET_VALUE, *(_reports[i].varPointer));
         }
         
         sendPacket(Serial, PacketID::COMMUNICATION, Communication::END);

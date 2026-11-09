@@ -5,6 +5,8 @@ enum PacketID : uint8_t
 {
     ROUTINE,
     GET,
+    SET,
+    SET_VALUE,
     RETURN,
     COMMUNICATION,
     EXCEPTION,
@@ -71,7 +73,7 @@ inline bool readPacketWait(Stream &stream, uint8_t &packetID, uint16_t &packetCo
     return readPacket(stream, packetID, packetContent);
 }
 
-inline uint16_t getAndSaveResponce(Stream &stream, uint16_t packetContent)
+inline uint16_t getAndSaveResponse(Stream &stream, uint16_t packetContent)
 {
     sendPacket(stream, PacketID::GET, packetContent);
     
