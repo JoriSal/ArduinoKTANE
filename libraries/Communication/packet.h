@@ -30,7 +30,8 @@ enum Routines : uint16_t
 {
     SETUP,
     UPDATE,
-    EXPLODE
+    EXPLODE,
+    DEFUSE
 };
 
 inline void emptyStream(Stream &stream)
@@ -79,11 +80,10 @@ inline uint16_t getAndSaveResponse(Stream &stream, uint16_t packetContent)
     
     uint8_t packetID = 0;
     
-    packetContent = 0;
-    
-    if (readPacketWait(stream, packetID, packetContent) && packetID == PacketID::RETURN)
+    if (!(readPacketWait(stream, packetID, packetContent) && packetID == PacketID::RETURN))
     {
-        return packetContent;
+        // ERROR, bro got an invalid response, or got ghosted idk
+        return 0;
     }
     
     return packetContent;

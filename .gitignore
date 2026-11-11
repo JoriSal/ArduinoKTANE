@@ -1,7 +1,12 @@
 ﻿/tests/
+/modules/debugger/
+
+# temporary until Module.h is nearly finalized
+/docs/
 
 .*
-repoDiff.py
-repoDiff.txt
+repoDiff.*
+repoLocal.*
+reader.*
 
 !.gitignore

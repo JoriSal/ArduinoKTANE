@@ -12,8 +12,15 @@ typedef void (*ExceptionCallback)(uint16_t);
 class ModuleClass
 {
 public:
+    
+    bool solved = false;
+    
+    ExceptionCallback onException = [](uint16_t) {};
+    
     inline void init(bool isNeedy)
     {
+        _isNeedy = isNeedy;
+        
         Serial.begin(BAUD_RATE);
         pinMode(2, INPUT);
     }
@@ -143,6 +150,15 @@ public:
         }
     }
     
+    inline void solve()
+    {
+        if (!solved)
+        {
+            _flags |= 1 << Flags::SOLVE;
+            solved = true;
+        }
+    }
+    
     inline void strike()
     {
         _flags |= 1 << Flags::STRIKE;
@@ -158,10 +174,10 @@ public:
         _errorCode = errorCode;
     }
     
-    ExceptionCallback onException = [](uint16_t) {};
+    bool commEnabled = false; // public for testing purposes only
     
 private:
-    bool commEnabled = false;
+    // bool commEnabled = false;
     uint16_t _flags = 0;
     uint8_t _errorCode = 0;
     bool _isNeedy = false;
@@ -243,7 +259,10 @@ private:
                     return;
                 }
             default:
-                return;
+                {
+                    throwError(Exception::INVALID_ROUTINE);
+                    return;
+                }
         }
     }
 };

@@ -2,13 +2,15 @@
 #include <packet.h>
 
 const uint8_t MAX_MODULES = 12;
+
+const uint8_t MODULE_ENABLE_DATA = 2;
+const uint8_t MODULE_ENABLE_CLOCK = 3;
+const uint8_t MODULE_ENABLE_LATCH = 4;
+
 uint16_t ModuleSlots = 0;
+uint16_t UnsolvedModules = 0;
 
 uint8_t OpenedModule = 0;
-
-// const uint8_t ModuleEnableClock = 0; pin to clock module 4 bit counter
-// const uint8_t ModuleEnableClear = 0; pin to clear module 4 bit counter
-// const uint8_t ModuleEnable = 0; pin to toggle comm on or off
 
 uint16_t getResponseTable[GetRequest::MAX_GET_REQUESTS];
 
@@ -24,8 +26,9 @@ inline void processFlagPacket(uint16_t packetWord);
 
 void setup()
 {
-    pinMode(6, OUTPUT);
-    digitalWrite(6, LOW);
+    pinMode(2, OUTPUT);
+    pinMode(3, OUTPUT);
+    pinMode(4, OUTPUT);
 
     Serial.begin(BAUD_RATE);
     Serial1.begin(BAUD_RATE);
@@ -36,47 +39,60 @@ void setup()
 
 void loop()
 {
-    runRoutine(Routines::UPDATE, 6);
+    // temporary for testing the shift register
+    for (uint8_t i = 0; i < 8; i++)
+    {
+        runRoutine(Routines::UPDATE, i);
+    }
 }
 
-inline void setupBomb() {
-
+inline void setupBomb()
+{
     // temporary for testing the GET/RETURN
     getResponseTable[GetRequest::BATTERIES] = 60;
     getResponseTable[GetRequest::TIMER] = 62;
 
-    //for (uint8_t module = 0; module < MAX_MODULES; module++)
-    runRoutine(Routines::SETUP, 6);
+    for (uint8_t module = 1; module <= MAX_MODULES; module++)
+    {
+        if (!runRoutine(Routines::SETUP, module))
+        {
+            continue;
+        }
+
+        ModuleSlots |= 1 << module;
+    }
 }
 
 inline void openModule(uint8_t moduleSlot)
 {
-    emptyStream(Serial1);
     closeModule();
 
-    // for a later date (simple counter+decoder enable instead of one pin per module)
-    /*
-    for (uint8_t i = 0; i < moduleSlot; i++)
-    {
-        digitalWrite(ModuleEnableClock, HIGH)
-        delayMicroseconds(10);
-        digitalWrite(ModuleEnableClock, LOW)
-        delayMicroseconds(10);
-    }
+    emptyStream(Serial1);
     
-    digitalWrite(ModuleEnable, HIGH)
+    uint16_t mask = 1 << moduleSlot;
+    
+    shiftOut(MODULE_ENABLE_DATA, MODULE_ENABLE_CLOCK, MSBFIRST, mask >> 8);
+    shiftOut(MODULE_ENABLE_DATA, MODULE_ENABLE_CLOCK, MSBFIRST, mask);
+
+    digitalWrite(MODULE_ENABLE_LATCH, HIGH);
+    digitalWrite(MODULE_ENABLE_LATCH, LOW);
+    
+    OpenedModule = moduleSlot;
     
     delay(1);
-     */
-
-    // TESTING ONLY
-    digitalWrite(6, HIGH);
 }
 
 inline void closeModule()
 {
-    digitalWrite(6, LOW);
-    //digitalWrite(ModuleEnable, LOW); - counter+decoder logic
+    shiftOut(MODULE_ENABLE_DATA, MODULE_ENABLE_CLOCK, MSBFIRST, 0);
+    shiftOut(MODULE_ENABLE_DATA, MODULE_ENABLE_CLOCK, MSBFIRST, 0);
+
+    digitalWrite(MODULE_ENABLE_LATCH, HIGH);
+    digitalWrite(MODULE_ENABLE_LATCH, LOW);
+
+    OpenedModule = 0;
+
+    delay(1);
 }
 
 inline bool runRoutine(uint16_t routine, uint8_t moduleSlot)
@@ -110,13 +126,12 @@ inline bool runRoutine(uint16_t routine, uint8_t moduleSlot)
 
         processPacket(packetID, packetWord);
     }
+    closeModule();
     return true;
 }
 
 void throwException(uint8_t errorCode)
 {
-    closeModule();
-
     for (uint8_t i = 0; i < 12; i++)
     {
         openModule(i);
@@ -124,6 +139,22 @@ void throwException(uint8_t errorCode)
     }
 
     while(true) {}
+}
+
+inline void checkSolved()
+{
+    if (UnsolvedModules)
+    {
+        return;
+    }
+    
+    for (uint8_t i = 0; i < 12; i++)
+    {
+        openModule(i);
+        sendPacket(Serial1, PacketID::ROUTINE, Routines::DEFUSE);
+    }
+
+    while(true) {} // freeze (for now)
 }
 
 // MASTER PACKET PROCESSING
@@ -165,7 +196,7 @@ inline void processGetPacket(uint16_t packetWord)
 {
     if (packetWord >= GetRequest::MAX_GET_REQUESTS)
     {
-        throwException(Exceptions::INVALID_GET);
+        throwException(Exception::INVALID_GET);
         return;
     }
     sendPacket(Serial1, PacketID::RETURN, getResponseTable[packetWord]);
@@ -175,7 +206,7 @@ inline void processSetPacket(uint16_t packetWord)
 {
     if (packetWord >= GetRequest::MAX_GET_REQUESTS)
     {
-        throwException(Exceptions::INVALID_SET);
+        throwException(Exception::INVALID_SET);
         return;
     }
     
@@ -184,7 +215,7 @@ inline void processSetPacket(uint16_t packetWord)
 
     if (!readPacketWait(Serial1, funcPacketID, funcPacketWord))
     {
-        throwException(Exceptions::TIMEOUT);
+        throwException(Exception::TIMEOUT);
         return;
     }
 
@@ -193,5 +224,10 @@ inline void processSetPacket(uint16_t packetWord)
 
 inline void processFlagPacket(uint16_t packetWord)
 {
+    if (packetWord & Flags::SOLVE)
+    {
+        UnsolvedModules &= ~(1 << OpenedModule);
+        checkSolved();
+    }
     sendPacket(Serial1, PacketID::RETURN, 0);
 }
