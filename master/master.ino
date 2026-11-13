@@ -12,7 +12,9 @@ uint16_t UnsolvedModules = 0;
 
 uint8_t OpenedModule = 0;
 
-uint16_t getResponseTable[GetRequest::MAX_GET_REQUESTS];
+uint8_t moduleTypeTemp = 0;
+
+uint16_t getResponseTable[GetMaster::MAX_GET_REQUESTS];
 
 inline void setupBomb();
 inline void openModule(uint8_t moduleSlot);
@@ -39,18 +41,22 @@ void setup()
 
 void loop()
 {
-    // temporary for testing the shift register
-    for (uint8_t i = 0; i < 8; i++)
+    for (uint8_t module = 1; module <= MAX_MODULES; module++)
     {
-        runRoutine(Routines::UPDATE, i);
+        if (!(ModuleSlots & 1 << module))
+        {
+            continue;
+        }
+        
+        runRoutine(Routines::UPDATE, module);
     }
 }
 
 inline void setupBomb()
 {
     // temporary for testing the GET/RETURN
-    getResponseTable[GetRequest::BATTERIES] = 60;
-    getResponseTable[GetRequest::TIMER] = 62;
+    getResponseTable[GetMaster::BATTERIES] = 60;
+    getResponseTable[GetMaster::TIMER] = 62;
 
     for (uint8_t module = 1; module <= MAX_MODULES; module++)
     {
@@ -60,6 +66,17 @@ inline void setupBomb()
         }
 
         ModuleSlots |= 1 << module;
+        
+        if (moduleTypeTemp == ModuleType::NORMAL)
+        {
+            UnsolvedModules |= 1 << module;
+        }
+        
+    }
+    
+    if (!UnsolvedModules)
+    {
+        throwException(Exception::INVALID_BOMB_SETUP);
     }
 }
 
@@ -84,6 +101,8 @@ inline void openModule(uint8_t moduleSlot)
 
 inline void closeModule()
 {
+    delay(100);
+    
     shiftOut(MODULE_ENABLE_DATA, MODULE_ENABLE_CLOCK, MSBFIRST, 0);
     shiftOut(MODULE_ENABLE_DATA, MODULE_ENABLE_CLOCK, MSBFIRST, 0);
 
@@ -92,7 +111,7 @@ inline void closeModule()
 
     OpenedModule = 0;
 
-    delay(1);
+    delay(100);
 }
 
 inline bool runRoutine(uint16_t routine, uint8_t moduleSlot)
@@ -132,10 +151,12 @@ inline bool runRoutine(uint16_t routine, uint8_t moduleSlot)
 
 void throwException(uint8_t errorCode)
 {
-    for (uint8_t i = 0; i < 12; i++)
+    uint16_t errorMessage = OpenedModule << 8 | errorCode;
+    
+    for (uint8_t module = 1; module <= MAX_MODULES; module++)
     {
-        openModule(i);
-        sendPacket(Serial1, PacketID::EXCEPTION, errorCode);
+        openModule(module);
+        sendPacket(Serial1, PacketID::EXCEPTION, errorMessage);
     }
 
     while(true) {}
@@ -148,9 +169,9 @@ inline void checkSolved()
         return;
     }
     
-    for (uint8_t i = 0; i < 12; i++)
+    for (uint8_t module = 1; module <= 12; module++)
     {
-        openModule(i);
+        openModule(module);
         sendPacket(Serial1, PacketID::ROUTINE, Routines::DEFUSE);
     }
 
@@ -194,7 +215,7 @@ inline void processPacket(uint8_t packetID, uint16_t packetWord)
 
 inline void processGetPacket(uint16_t packetWord)
 {
-    if (packetWord >= GetRequest::MAX_GET_REQUESTS)
+    if (packetWord >= GetMaster::MAX_GET_REQUESTS)
     {
         throwException(Exception::INVALID_GET);
         return;
@@ -204,7 +225,7 @@ inline void processGetPacket(uint16_t packetWord)
 
 inline void processSetPacket(uint16_t packetWord)
 {
-    if (packetWord >= GetRequest::MAX_GET_REQUESTS)
+    if (packetWord >= GetMaster::MAX_GET_REQUESTS)
     {
         throwException(Exception::INVALID_SET);
         return;
@@ -217,6 +238,11 @@ inline void processSetPacket(uint16_t packetWord)
     {
         throwException(Exception::TIMEOUT);
         return;
+    }
+    
+    if (funcPacketID != PacketID::SET_VALUE)
+    {
+        throwException(Exception::INVALID_SET);
     }
 
     getResponseTable[packetWord] = funcPacketWord;

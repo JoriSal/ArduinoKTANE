@@ -1,5 +1,5 @@
 ﻿/tests/
-/modules/debugger/
+/debugger/
 
 # temporary until Module.h is nearly finalized
 /docs/

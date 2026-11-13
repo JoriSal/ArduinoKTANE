@@ -4,9 +4,6 @@
 #include <Common.h>
 #include <packet.h>
 
-#define MODULE false
-#define NEEDY true
-
 typedef void (*ExceptionCallback)(uint16_t);
 
 class ModuleClass
@@ -16,46 +13,14 @@ public:
     bool solved = false;
     
     ExceptionCallback onException = [](uint16_t) {};
-    
-    inline void init(bool isNeedy)
+
+    inline void init(uint8_t moduleType, uint8_t maxConfigurations = 0, uint8_t maxSyncs = 0, uint8_t maxReports = 0)
     {
-        _isNeedy = isNeedy;
+        _moduleType = moduleType;
         
         Serial.begin(BAUD_RATE);
         pinMode(2, INPUT);
-    }
-    
-    inline void init(bool isNeedy, uint8_t maxConfigurations)
-    {
-        init(isNeedy);
-        _maxConfigurations = maxConfigurations;
         
-        if (_maxConfigurations > 0)
-        {
-            _configurations = new Binding[_maxConfigurations];
-        }
-    }
-    
-    inline void init(bool isNeedy, uint8_t maxConfigurations, uint8_t maxSyncs)
-    {
-        init(isNeedy);
-        _maxConfigurations = maxConfigurations;
-        _maxSyncs = maxSyncs;
-        
-        if (_maxConfigurations > 0)
-        {
-            _configurations = new Binding[_maxConfigurations];
-        }
-        
-        if (_maxSyncs > 0)
-        {
-            _syncs = new Binding[_maxSyncs]; 
-        }
-    }
-    
-    inline void init(bool isNeedy, uint8_t maxConfigurations, uint8_t maxSyncs, uint8_t maxReports)
-    {
-        init(isNeedy);
         _maxConfigurations = maxConfigurations;
         _maxSyncs = maxSyncs;
         _maxReports = maxReports;
@@ -142,6 +107,7 @@ public:
                 case PacketID::EXCEPTION:
                     {
                         onException(packetWord);
+                        break;
                     }
                 
                 default:
@@ -154,19 +120,19 @@ public:
     {
         if (!solved)
         {
-            _flags |= 1 << Flags::SOLVE;
+            _flags |= Flags::SOLVE;
             solved = true;
         }
     }
     
     inline void strike()
     {
-        _flags |= 1 << Flags::STRIKE;
+        _flags |= Flags::STRIKE;
     }
     
     inline void detonate()
     {
-        _flags |= 1 << Flags::DETONATE;
+        _flags |= Flags::DETONATE;
     }
 
     inline void throwError(uint8_t errorCode)
@@ -180,7 +146,7 @@ private:
     // bool commEnabled = false;
     uint16_t _flags = 0;
     uint8_t _errorCode = 0;
-    bool _isNeedy = false;
+    uint8_t _moduleType = ModuleType::NO_MODULE;
     
     struct Binding {
         uint16_t* varPointer;
@@ -258,6 +224,11 @@ private:
                     // ADD EXPLOSION LOGIC (like the coloured led or something)
                     return;
                 }
+			case Routines::DEFUSE:
+				{
+					// ADD DEFUSE LOGIC (blink the status LED green)
+					return;
+				}
             default:
                 {
                     throwError(Exception::INVALID_ROUTINE);

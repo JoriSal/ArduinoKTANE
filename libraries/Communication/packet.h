@@ -19,11 +19,16 @@ enum Communication : uint16_t
     END
 };
 
-enum GetRequest : uint16_t
+enum GetMaster : uint16_t
 {
     BATTERIES,
     TIMER,
     MAX_GET_REQUESTS
+};
+
+enum GetModule : uint16_t
+{
+    MAX_GET_REQUESTS_MODULE
 };
 
 enum Routines : uint16_t
